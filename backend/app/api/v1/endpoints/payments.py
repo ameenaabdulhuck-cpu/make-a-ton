@@ -22,7 +22,30 @@ from app.models import (
 from app.serializers import PaymentRecordSerializer
 
 
+class PaymentsListView(APIView):
+    """GET /api/v1/payments/ — List payments with role-based filtering."""
+
+    permission_classes = [IsStaffOrCustomer]
+
+    def get(self, request):
+        user = request.user
+        if user.role == User.Role.CUSTOMER:
+            payments = PaymentRecord.objects.filter(customer__user=user)
+        else:
+            payments = PaymentRecord.objects.all()
+
+        payments = payments.select_related(
+            "customer", "invoice", "subscription", "quotation", "recorded_by"
+        ).order_by("-payment_date")
+        return Response(
+            PaymentRecordSerializer(payments, many=True).data,
+            status=status.HTTP_200_OK,
+        )
+
+
 class PaymentRecordInputSerializer(serializers.Serializer):
+    """Input validation for POST /api/payments/record/."""
+
     quotation_id = serializers.UUIDField(required=False, allow_null=True)
     invoice_id = serializers.UUIDField(required=False, allow_null=True)
     amount_paid = serializers.DecimalField(
@@ -37,6 +60,8 @@ class PaymentRecordInputSerializer(serializers.Serializer):
 
 
 class PaymentWebhookInputSerializer(serializers.Serializer):
+    """Input validation for POST /api/payments/webhook/."""
+
     gateway_reference_id = serializers.CharField(
         required=False, allow_blank=True
     )
@@ -93,11 +118,6 @@ class PaymentRecordView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if payment_date := data.get("payment_date"):
-            payment_date = payment_date
-        else:
-            payment_date = timezone.now()
-
         amount_paid = data["amount_paid"]
 
         # Validate against invoice outstanding if applicable
@@ -119,11 +139,11 @@ class PaymentRecordView(APIView):
                 plan=plan,
                 amount_paid=amount_paid,
                 payment_method=data["payment_method"],
-                payment_date=payment_date,
+                payment_date=data.get("payment_date") or timezone.now(),
                 recorded_by=request.user,
                 notes=data.get("notes", ""),
                 status=PaymentRecord.Status.SUCCESS,
-                currency="USD",
+                currency="INR",
                 gateway_reference_id=data.get("gateway_reference_id") or None,
             )
 

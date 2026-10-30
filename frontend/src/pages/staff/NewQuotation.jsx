@@ -23,6 +23,19 @@ export default function NewQuotation() {
   const [plans, setPlans] = useState([]);
   const [taxes, setTaxes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({
+    customerId: searchParams.get('customer') || '',
+    productId: '',
+    planId: '',
+    variantIds: [],
+    quantity: 1,
+    discountType: 'Percentage',
+    discountValue: 0,
+    taxId: '',
+    paymentTerms: 'Net 15',
+    validUntil: toISODate(addDays(new Date(), 30)),
+  });
+  const [errors, setErrors] = useState({});
 
   // Load reference data from backend on mount
   useEffect(() => {
@@ -40,6 +53,9 @@ export default function NewQuotation() {
           setProducts(prods);
           setPlans(plns);
           setTaxes(taxes);
+          if (taxes.length > 0) {
+            setForm((prev) => ({ ...prev, taxId: taxes[0].id || '' }));
+          }
         }
       } catch (error) {
         console.error("Failed to load reference data:", error);
@@ -51,30 +67,8 @@ export default function NewQuotation() {
     return () => { mounted = false; };
   }, []);
 
-  if (loading) {
-    return (
-      <div className="stack" style={{ padding: "40px", textAlign: "center" }}>
-        <div className="text-muted">Loading products, plans and customers…</div>
-      </div>
-    );
-  }
-
   const activeProducts = products.filter((item) => item.status === 'Active');
   const activeTaxes = taxes.filter((item) => item.status === 'Active');
-  const [form, setForm] = useState({
-    customerId: searchParams.get('customer') || '',
-    productId: '',
-    planId: '',
-    variantIds: [],
-    quantity: 1,
-    discountType: 'Percentage',
-    discountValue: 0,
-    taxId: activeTaxes[0]?.id || '',
-    paymentTerms: 'Net 15',
-    validUntil: toISODate(addDays(new Date(), 30)),
-  });
-  const [errors, setErrors] = useState({});
-
   const planOptions = plans.filter((plan) => plan.productId === form.productId && plan.status === 'Active');
   const product = activeProducts.find((item) => item.id === form.productId);
   const plan = planOptions.find((item) => item.id === form.planId);
@@ -146,7 +140,6 @@ export default function NewQuotation() {
         validityDays: 30,
       });
 
-      // Refresh quotations list
       await quotationService.list();
 
       navigate('/staff/quotations', { state: { message: 'Quotation created and shared with the customer.' } });

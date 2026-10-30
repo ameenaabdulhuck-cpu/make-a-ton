@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { api } from "../services/api";
 import { authService } from "../services/authService";
 
 const AuthContext = createContext(null);
@@ -55,7 +56,12 @@ export function AuthProvider({ children }) {
     [persistSession],
   );
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await api.post("/auth/logout/");
+    } catch (_) {
+      // Ignore logout errors
+    }
     setSession(null);
     try {
       localStorage.removeItem(AUTH_STORAGE_KEY);

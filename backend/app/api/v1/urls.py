@@ -5,6 +5,7 @@ from django.urls import path
 from app.api.v1.endpoints.auth import (
     AdminCreateStaffView,
     LoginView,
+    LogoutView,
     MeView,
     RegisterView,
 )
@@ -20,7 +21,11 @@ from app.api.v1.endpoints.invoices import (
     InvoiceDetailView,
     InvoiceListView,
 )
-from app.api.v1.endpoints.payments import PaymentRecordView, PaymentWebhookView
+from app.api.v1.endpoints.payments import (
+    PaymentRecordView,
+    PaymentWebhookView,
+    PaymentsListView,
+)
 from app.api.v1.endpoints.plans import PlanCreateView, PlanDetailView, PlanListView
 from app.api.v1.endpoints.products import (
     ProductCreateView,
@@ -34,6 +39,7 @@ from app.api.v1.endpoints.quotations import (
     QuotationListView,
     QuotationRespondView,
 )
+from app.api.v1.endpoints.staff import StaffDetailView, StaffListView
 from app.api.v1.endpoints.subscriptions import (
     SubscriptionDetailView,
     SubscriptionListView,
@@ -49,9 +55,13 @@ from app.api.v1.endpoints.taxes import (
 urlpatterns = [
     # Authentication
     path("auth/login/", LoginView.as_view(), name="auth-login"),
+    path("auth/logout/", LogoutView.as_view(), name="auth-logout"),
     path("auth/register/", RegisterView.as_view(), name="auth-register"),
     path("auth/me/", MeView.as_view(), name="auth-me"),
     path("auth/staff/", AdminCreateStaffView.as_view(), name="auth-create-staff"),
+    # Staff
+    path("staff/", StaffListView.as_view(), name="staff-list"),
+    path("staff/<uuid:staff_id>/", StaffDetailView.as_view(), name="staff-detail"),
     # Customers
     path("customers/", CustomerListView.as_view(), name="customer-list"),
     path("customers/<uuid:customer_id>/", CustomerDetailView.as_view(), name="customer-detail"),
@@ -98,6 +108,7 @@ urlpatterns = [
         name="invoice-detail",
     ),
     # Payments
+    path("payments/", PaymentsListView.as_view(), name="payment-list"),
     path("payments/record/", PaymentRecordView.as_view(), name="payment-record"),
     path("payments/webhook/", PaymentWebhookView.as_view(), name="payment-webhook"),
     # Discounts

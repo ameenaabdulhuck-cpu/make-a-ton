@@ -344,7 +344,7 @@ class Quotation(models.Model):
         max_digits=12, decimal_places=2, default=Decimal("0")
     )
     total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
-    currency = models.CharField(max_length=3, default="USD")
+    currency = models.CharField(max_length=3, default="INR")
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
     tax_name = models.CharField(max_length=255, blank=True)
     discount_code_used = models.CharField(max_length=255, blank=True, null=True)
@@ -509,7 +509,7 @@ class Invoice(models.Model):
     )
     issue_date = models.DateTimeField(default=timezone.now)
     due_date = models.DateTimeField(null=True, blank=True)
-    currency = models.CharField(max_length=3, default="USD")
+    currency = models.CharField(max_length=3, default="INR")
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -610,7 +610,7 @@ class PaymentRecord(models.Model):
         choices=Status.choices,
         default=Status.SUCCESS,
     )
-    currency = models.CharField(max_length=3, default="USD")
+    currency = models.CharField(max_length=3, default="INR")
     gateway_reference_id = models.CharField(
         max_length=255, blank=True, null=True
     )

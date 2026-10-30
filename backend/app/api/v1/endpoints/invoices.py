@@ -95,7 +95,7 @@ class InvoiceGenerateView(APIView):
             status=Invoice.Status.DRAFT,
             issue_date=timezone.now(),
             due_date=due_date,
-            currency="USD",
+            currency="INR",
         )
 
         return Response(

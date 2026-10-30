@@ -66,8 +66,8 @@ export default function SubscriptionsPayments() {
     );
   }
 
-  const mySubs = subscriptions.filter((sub) => sub.staffId === user.id);
-  const myInvoices = invoices.filter((invoice) => invoice.staffId === user.id);
+  const mySubs = subscriptions.filter((sub) => sub.staffId === (user?.id || ""));
+  const myInvoices = invoices.filter((invoice) => invoice.staffId === (user?.id || ""));
   const outstandingInvoices = myInvoices.filter((invoice) => getOutstanding(invoice) > 0);
   const myInvoiceIds = new Set(myInvoices.map((invoice) => invoice.id));
   const myPayments = payments

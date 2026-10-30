@@ -158,4 +158,37 @@ export const listingService = {
     }));
   },
 
+  staff: async () => {
+    try {
+      const data = await api.get("/staff/");
+      return data.map((item) => ({
+        id: String(item.id),
+        name: item.name || item.email,
+        email: item.email,
+        phone: item.phone || "",
+        department: "",
+        maxDiscountPercent: item.max_discount_percent || 10,
+        status: "Active",
+      }));
+    } catch (error) {
+      return [];
+    }
+  },
+
+  payments: async () => {
+    const data = await api.get("/payments/");
+    return data.map((item) => ({
+      id: String(item.id),
+      invoiceId: String(item.invoice || ""),
+      subscriptionId: String(item.subscription || ""),
+      customerId: String(item.customer),
+      customerName: item.customer_name || "",
+      amount: item.amount_paid,
+      date: item.payment_date,
+      method: item.payment_method,
+      status: item.status,
+      gatewayReferenceId: item.gateway_reference_id,
+    }));
+  },
+
 };

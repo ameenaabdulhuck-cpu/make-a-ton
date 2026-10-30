@@ -114,7 +114,7 @@ class QuotationService:
             discount_amount=discount_amount,
             tax=tax,
             total=total,
-            currency="USD",
+            currency="INR",
             expires_at=expires_at,
         )
 

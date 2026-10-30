@@ -10,10 +10,10 @@ export default function Dashboard() {
   const { quotations, subscriptions, invoices, customers, products, plans } = useData();
 
   const myQuotes = quotations
-    .filter((quote) => quote.staffId === user.id)
+    .filter((quote) => quote.staffId === (user?.id || ""))
     .map((quote) => ({ ...quote, displayStatus: getQuotationStatus(quote) }));
-  const mySubs = subscriptions.filter((sub) => sub.staffId === user.id);
-  const myInvoices = invoices.filter((invoice) => invoice.staffId === user.id);
+  const mySubs = subscriptions.filter((sub) => sub.staffId === (user?.id || ""));
+  const myInvoices = invoices.filter((invoice) => invoice.staffId === (user?.id || ""));
   const outstanding = myInvoices.reduce((sum, invoice) => sum + getOutstanding(invoice), 0);
   const count = (status) => myQuotes.filter((quote) => quote.displayStatus === status).length;
   const recent = [...myQuotes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);

@@ -25,6 +25,7 @@ async function request(path, options = {}) {
 
   const response = await fetch(url, {
     ...options,
+    credentials: "include", // Send cookies for session authentication
     headers,
   });
 
@@ -58,4 +59,10 @@ export const api = {
       body: body ? JSON.stringify(body) : undefined,
     }),
   delete: (path, headers = {}) => request(path, { method: "DELETE", headers }),
+  patch: (path, body, headers = {}) =>
+    request(path, {
+      method: "PATCH",
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    }),
 };

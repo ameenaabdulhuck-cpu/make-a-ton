@@ -15,6 +15,7 @@ const FILTERS = ['All', 'Pending', 'Accepted', 'Rejected', 'Expired'];
 
 export default function Quotations() {
   const { user } = useAuth();
+  const location = useLocation();
   const [quotations, setQuotations] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
@@ -23,8 +24,6 @@ export default function Quotations() {
   const [filter, setFilter] = useState('All');
   const [viewing, setViewing] = useState(null);
   const [message, setMessage] = useState(location.state?.message || '');
-
-  const location = useLocation();
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -59,7 +58,7 @@ export default function Quotations() {
   }
 
   const mine = quotations
-    .filter((quote) => quote.staffId === user.id)
+    .filter((quote) => quote.staffId === (user?.id || ""))
     .map((quote) => ({ ...quote, displayStatus: getQuotationStatus(quote) }))
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   const rows = filter === 'All' ? mine : mine.filter((quote) => quote.displayStatus === filter);

@@ -164,7 +164,7 @@ class QuotationCreateView(APIView):
                 discount_amount=discount_amount,
                 tax_amount=tax_amount,
                 total=total,
-                currency="USD",
+                currency="INR",
                 tax_rate=tax_rate,
                 tax_name=tax_name,
                 discount_code_used=discount_code_used,
@@ -307,7 +307,7 @@ class QuotationRespondView(APIView):
                     status=Invoice.Status.DRAFT,
                     issue_date=start,
                     due_date=start + timedelta(days=30),
-                    currency="USD",
+                    currency="INR",
                 )
 
                 return Response(

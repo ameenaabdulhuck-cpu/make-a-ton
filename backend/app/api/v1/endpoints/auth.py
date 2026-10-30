@@ -1,5 +1,6 @@
 """Authentication endpoints with role-based access control."""
 
+from django.contrib.auth import login as django_login
 from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -55,6 +56,9 @@ class LoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Create Django session so subsequent API requests are authenticated
+        django_login(request, user)
+
         profile = getattr(user, "customer_profile", None)
         data = {
             "id": str(user.id),
@@ -68,6 +72,21 @@ class LoginView(APIView):
             data["customerId"] = str(profile.id)
 
         return Response(data, status=status.HTTP_200_OK)
+
+
+class LogoutView(APIView):
+    """POST /api/v1/auth/logout/ - Clear the session."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from django.contrib.auth import logout as django_logout
+
+        django_logout(request)
+        return Response(
+            {"message": "Logged out successfully."},
+            status=status.HTTP_200_OK,
+        )
 
 
 class RegisterView(APIView):
