@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import DataTable from '../../components/DataTable';
 import InvoiceTable from '../../components/InvoiceTable';
 import Modal from '../../components/Modal';
@@ -7,21 +8,75 @@ import StatusBadge from '../../components/StatusBadge';
 import SubscriptionDetail from '../../components/SubscriptionDetail';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import { formatDate, formatMoney, getOutstanding } from '../../utils/billing';
+import {
+  formatDate,
+  formatMoney,
+  getOutstanding,
+  getInvoiceStatus,
+} from '../../utils/billing';
+import { listingService } from '../../services/listingService';
+import { paymentService } from '../../services/paymentService';
 
 export default function SubscriptionsPayments() {
   const { user } = useAuth();
-  const { subscriptions, invoices, payments, customers, plans, products, recordPayment } = useData();
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [plans, setPlans] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('subscriptions');
   const [viewing, setViewing] = useState(null);
   const [paying, setPaying] = useState(null);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [subs, invs, custs, plns, prods] = await Promise.all([
+        listingService.subscriptions().catch(() => []),
+        listingService.invoices().catch(() => []),
+        listingService.customers().catch(() => []),
+        listingService.plans().catch(() => []),
+        listingService.products().catch(() => []),
+      ]);
+      const pays = [];
+      setSubscriptions(subs);
+      setInvoices(invs);
+      setPayments(pays);
+      setCustomers(custs);
+      setPlans(plns);
+      setProducts(prods);
+    } catch (error) {
+      console.error("Failed to load data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  if (loading) {
+    return (
+      <div className="stack" style={{ padding: "40px", textAlign: "center" }}>
+        <div className="text-muted">Loading subscriptions and payments…</div>
+      </div>
+    );
+  }
 
   const mySubs = subscriptions.filter((sub) => sub.staffId === user.id);
   const myInvoices = invoices.filter((invoice) => invoice.staffId === user.id);
   const outstandingInvoices = myInvoices.filter((invoice) => getOutstanding(invoice) > 0);
   const myInvoiceIds = new Set(myInvoices.map((invoice) => invoice.id));
-  const myPayments = payments.filter((payment) => myInvoiceIds.has(payment.invoiceId)).sort((a, b) => new Date(b.date) - new Date(a.date));
-  const totalOutstanding = outstandingInvoices.reduce((sum, invoice) => sum + getOutstanding(invoice), 0);
+  const myPayments = payments
+    .filter((payment) => myInvoiceIds.has(payment.invoiceId))
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+  const totalOutstanding = outstandingInvoices.reduce(
+    (sum, invoice) => sum + getOutstanding(invoice),
+    0
+  );
 
   const customerName = (id) => customers.find((item) => item.id === id)?.businessName || '-';
   const invoiceNumber = (id) => invoices.find((item) => item.id === id)?.number || '-';
@@ -33,13 +88,15 @@ export default function SubscriptionsPayments() {
 
   async function handleRecordPayment(data) {
     try {
-      await recordPayment({
+      await paymentService.record({
+        quotationId: data.quotationId || "",
         invoiceId: data.invoiceId,
         amount: data.amount,
         method: data.method,
-        quotationId: data.quotationId || "",
+        notes: `Payment for invoice ${data.invoiceId}`,
       });
       setPaying(null);
+      await loadData();
     } catch (error) {
       alert(error.message || "Failed to record payment.");
     }

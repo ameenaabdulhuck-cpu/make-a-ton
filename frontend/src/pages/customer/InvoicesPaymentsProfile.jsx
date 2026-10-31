@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import InvoiceDetail from '../../components/InvoiceDetail';
 import InvoiceTable from '../../components/InvoiceTable';
 import Modal from '../../components/Modal';
 import PrintFooter from '../../components/PrintFooter';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { listingService } from '../../services/listingService';
 import { formatDate, formatMoney, getOutstanding } from '../../utils/billing';
 import { validatePassword } from '../../utils/validation';
 
@@ -16,9 +17,51 @@ const TABS = [
 
 export default function InvoicesPaymentsProfile() {
   const { user } = useAuth();
-  const { invoices, payments, subscriptions, plans, products } = useData();
+  const [invoices, setInvoices] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [plans, setPlans] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('invoices');
   const [viewing, setViewing] = useState(null);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [invs, pays, subs, plns, prods, custs] = await Promise.all([
+        listingService.invoices().catch(() => []),
+        listingService.payments ? listingService.payments().catch(() => []) : [],
+        listingService.subscriptions().catch(() => []),
+        listingService.plans().catch(() => []),
+        listingService.products().catch(() => []),
+        listingService.customers().catch(() => []),
+      ]);
+      setInvoices(invs);
+      setPayments(pays);
+      setSubscriptions(subs);
+      setPlans(plns);
+      setProducts(prods);
+      setCustomers(custs);
+    } catch (error) {
+      console.error("Failed to load data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  if (loading) {
+    return (
+      <div className="stack" style={{ padding: "40px", textAlign: "center" }}>
+        <div className="text-muted">Loading invoices and payments…</div>
+      </div>
+    );
+  }
 
   const myInvoices = invoices.filter((invoice) => invoice.customerId === user.id);
   const myInvoiceIds = new Set(myInvoices.map((invoice) => invoice.id));
@@ -96,7 +139,7 @@ export default function InvoicesPaymentsProfile() {
           </div>
         )}
 
-        {tab === 'profile' && <ProfilePanel />}
+        {tab === 'profile' && <ProfilePanel user={user} />}
       </div>
 
       {viewing && (
@@ -108,8 +151,7 @@ export default function InvoicesPaymentsProfile() {
   );
 }
 
-function ProfilePanel() {
-  const { user } = useAuth();
+function ProfilePanel({ user }) {
   const { updateCustomer } = useData();
   const [details, setDetails] = useState({
     name: user.name,

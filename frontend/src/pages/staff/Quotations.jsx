@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import DataTable from '../../components/DataTable';
 import Modal from '../../components/Modal';
@@ -7,17 +7,56 @@ import QuotationDetail from '../../components/QuotationDetail';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { quotationService } from '../../services/quotationService';
+import { listingService } from '../../services/listingService';
 import { formatDate, formatMoney, getQuotationStatus } from '../../utils/billing';
 
 const FILTERS = ['All', 'Pending', 'Accepted', 'Rejected', 'Expired'];
 
 export default function Quotations() {
   const { user } = useAuth();
-  const { quotations, customers, products, plans } = useData();
-  const location = useLocation();
+  const [quotations, setQuotations] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
   const [viewing, setViewing] = useState(null);
   const [message, setMessage] = useState(location.state?.message || '');
+
+  const location = useLocation();
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [qList, custs, prods, plns] = await Promise.all([
+        quotationService.list().catch(() => []),
+        listingService.customers().catch(() => []),
+        listingService.products().catch(() => []),
+        listingService.plans().catch(() => []),
+      ]);
+      setQuotations(qList);
+      setCustomers(custs);
+      setProducts(prods);
+      setPlans(plns);
+    } catch (error) {
+      console.error("Failed to load quotations:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  if (loading) {
+    return (
+      <div className="stack" style={{ padding: "40px", textAlign: "center" }}>
+        <div className="text-muted">Loading quotations…</div>
+      </div>
+    );
+  }
 
   const mine = quotations
     .filter((quote) => quote.staffId === user.id)

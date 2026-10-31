@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from '../../components/AuthLayout';
-import { useData } from '../../context/DataContext';
+import { authService } from '../../services/authService';
 import { validateEmail, validatePassword } from '../../utils/validation';
 
 const BUSINESS_TYPES = ['Food & Beverage', 'Retail', 'Logistics', 'Design Agency', 'Fitness', 'Healthcare', 'Other'];
@@ -30,7 +30,6 @@ function validateRegistration(form) {
 }
 
 export default function Register() {
-  const { registerCustomer } = useData();
   const navigate = useNavigate();
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
@@ -47,20 +46,20 @@ export default function Register() {
     setErrors(validation);
     if (Object.keys(validation).length > 0) return;
 
-    const result = await registerCustomer({
-      name: form.name.trim(),
-      email: form.email.trim(),
-      password: form.password,
-      businessName: form.businessName.trim(),
-      businessType: form.businessType,
-      phone: form.phone.trim(),
-      address: form.address.trim(),
-    });
-    if (!result.ok) {
-      setErrors({ email: result.error });
-      return;
+    try {
+      await authService.register({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        password: form.password,
+        businessName: form.businessName.trim(),
+        businessType: form.businessType,
+        phone: form.phone.trim(),
+        address: form.address.trim(),
+      });
+      navigate('/login', { state: { message: 'Account created. Sign in to view your quotations.' } });
+    } catch (error) {
+      setErrors({ email: error.message || 'Registration failed.' });
     }
-    navigate('/login', { state: { message: 'Account created. Sign in to view your quotations.' } });
   }
 
   return (

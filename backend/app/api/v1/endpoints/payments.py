@@ -1,19 +1,30 @@
 """DRF endpoints for payments."""
 
+from datetime import timedelta
 from decimal import Decimal
 
+from django.db import models, transaction
+from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from app.services.payment_service import PaymentService
+from app.api.v1.permissions import IsCustomer, IsStaff, IsStaffOrCustomer
+from app.models import (
+    CustomerProfile,
+    Invoice,
+    PaymentRecord,
+    Quotation,
+    Subscription,
+    SubscriptionPlan,
+    User,
+)
 from app.serializers import PaymentRecordSerializer
 
 
 class PaymentRecordInputSerializer(serializers.Serializer):
-    """Input validation for POST /api/payments/record/."""
-
-    quotation_id = serializers.CharField(required=True)
+    quotation_id = serializers.UUIDField(required=False, allow_null=True)
+    invoice_id = serializers.UUIDField(required=False, allow_null=True)
     amount_paid = serializers.DecimalField(
         max_digits=12, decimal_places=2, required=True, min_value=Decimal("0")
     )
@@ -26,62 +37,174 @@ class PaymentRecordInputSerializer(serializers.Serializer):
 
 
 class PaymentWebhookInputSerializer(serializers.Serializer):
-    """Input validation for POST /api/payments/webhook/."""
-
-    gateway_reference_id = serializers.CharField(required=False, allow_blank=True)
+    gateway_reference_id = serializers.CharField(
+        required=False, allow_blank=True
+    )
     payment_id = serializers.CharField(required=False, allow_blank=True)
     status = serializers.CharField(required=True)
 
 
 class PaymentRecordView(APIView):
-    """POST /api/payments/record/ — Log a pending payment linked to a quotation."""
+    """POST /api/v1/payments/record/ — Record a payment against an invoice or quotation."""
+
+    permission_classes = [IsStaff]
 
     def post(self, request):
-        input_serializer = PaymentRecordInputSerializer(data=request.data)
-        input_serializer.is_valid(raise_exception=True)
+        serializer = PaymentRecordInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
 
-        data = input_serializer.validated_data
+        quotation = None
+        invoice = None
+        subscription = None
+        customer = None
+        plan = None
 
-        try:
-            payment_record = PaymentService.record_payment(
-                quotation_id=data["quotation_id"],
-                amount_paid=data["amount_paid"],
-                payment_method=data["payment_method"],
-                recorded_by=request.user if request.user.is_authenticated else None,
-                payment_date=data.get("payment_date"),
-                notes=data.get("notes", ""),
-                gateway_reference_id=data.get("gateway_reference_id") or None,
-            )
-        except Exception as exc:
+        if data.get("invoice_id"):
+            try:
+                invoice = Invoice.objects.get(id=data["invoice_id"])
+                customer = invoice.customer
+                plan = invoice.subscription.plan if invoice.subscription else None
+                subscription = invoice.subscription
+            except Invoice.DoesNotExist:
+                return Response(
+                    {"error": "Invoice not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+        elif data.get("quotation_id"):
+            try:
+                quotation = Quotation.objects.get(id=data["quotation_id"])
+                customer = quotation.customer
+                plan = quotation.plan
+            except Quotation.DoesNotExist:
+                return Response(
+                    {"error": "Quotation not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+        else:
             return Response(
-                {"error": str(exc)},
+                {"error": "Either invoice_id or quotation_id is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        output_serializer = PaymentRecordSerializer(payment_record)
-        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+        if not customer:
+            return Response(
+                {"error": "Cannot determine customer for payment."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if payment_date := data.get("payment_date"):
+            payment_date = payment_date
+        else:
+            payment_date = timezone.now()
+
+        amount_paid = data["amount_paid"]
+
+        # Validate against invoice outstanding if applicable
+        if invoice:
+            if amount_paid > invoice.outstanding:
+                return Response(
+                    {
+                        "error": f"Amount exceeds outstanding balance of {invoice.outstanding}."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        with transaction.atomic():
+            payment_record = PaymentRecord.objects.create(
+                invoice=invoice,
+                subscription=subscription,
+                quotation=quotation,
+                customer=customer,
+                plan=plan,
+                amount_paid=amount_paid,
+                payment_method=data["payment_method"],
+                payment_date=payment_date,
+                recorded_by=request.user,
+                notes=data.get("notes", ""),
+                status=PaymentRecord.Status.SUCCESS,
+                currency="USD",
+                gateway_reference_id=data.get("gateway_reference_id") or None,
+            )
+
+            # Update invoice paid amount
+            if invoice:
+                total_paid = invoice.payments.filter(
+                    status=PaymentRecord.Status.SUCCESS
+                ).aggregate(total=models.Sum("amount_paid"))["total"] or Decimal("0")
+                invoice.paid_amount = total_paid
+                invoice.save()
+
+        return Response(
+            PaymentRecordSerializer(payment_record).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class PaymentWebhookView(APIView):
-    """POST /api/payments/webhook/ — Handle payment gateway status updates."""
+    """POST /api/v1/payments/webhook/ — Handle payment gateway status updates."""
+
+    permission_classes = [IsStaff]
 
     def post(self, request):
-        input_serializer = PaymentWebhookInputSerializer(data=request.data)
-        input_serializer.is_valid(raise_exception=True)
+        serializer = PaymentWebhookInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
 
-        data = input_serializer.validated_data
-
-        try:
-            payment_record = PaymentService.handle_webhook(
-                gateway_reference_id=data.get("gateway_reference_id") or None,
-                payment_id=data.get("payment_id") or None,
-                status=data["status"],
-            )
-        except Exception as exc:
+        if not data.get("gateway_reference_id") and not data.get("payment_id"):
             return Response(
-                {"error": str(exc)},
+                {"error": "Either gateway_reference_id or payment_id is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        output_serializer = PaymentRecordSerializer(payment_record)
-        return Response(output_serializer.data, status=status.HTTP_200_OK)
+        try:
+            if data.get("payment_id"):
+                payment_record = PaymentRecord.objects.get(
+                    id=data["payment_id"]
+                )
+            else:
+                payment_record = PaymentRecord.objects.get(
+                    gateway_reference_id=data["gateway_reference_id"]
+                )
+        except PaymentRecord.DoesNotExist:
+            return Response(
+                {"error": "Payment record not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        new_status = data["status"].upper()
+        if new_status not in (
+            PaymentRecord.Status.SUCCESS,
+            PaymentRecord.Status.FAILED,
+        ):
+            return Response(
+                {"error": "Status must be SUCCESS or FAILED."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            old_status = payment_record.status
+            payment_record.status = new_status
+            payment_record.gateway_reference_id = (
+                data.get("gateway_reference_id")
+                or payment_record.gateway_reference_id
+            )
+            payment_record.save()
+
+            # If payment succeeded and linked to invoice, update invoice
+            if (
+                new_status == PaymentRecord.Status.SUCCESS
+                and old_status != PaymentRecord.Status.SUCCESS
+                and payment_record.invoice
+            ):
+                invoice = payment_record.invoice
+                total_paid = invoice.payments.filter(
+                    status=PaymentRecord.Status.SUCCESS
+                ).aggregate(total=models.Sum("amount_paid"))["total"] or Decimal("0")
+                invoice.paid_amount = total_paid
+                invoice.save()
+
+        return Response(
+            PaymentRecordSerializer(payment_record).data,
+            status=status.HTTP_200_OK,
+        )

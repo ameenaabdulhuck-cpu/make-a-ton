@@ -7,32 +7,31 @@ import { api } from "./api";
 
 /**
  * Transform a backend quotation into the frontend's expected shape.
- * The frontend expects: id, number, staffId, customerId, planId, productId,
- * variantIds, quantity, discountType, discountValue, taxId, paymentTerms,
- * status, createdAt, validUntil, unitPrice, subtotal, discountAmount,
- * taxAmount, taxRate, taxName, total
  */
 function transformQuotation(backendQuote, planLookup = {}, productLookup = {}) {
   const plan = planLookup[backendQuote.plan] || {};
-  const product = productLookup[plan.productId] || {};
+  const product = productLookup[backendQuote.product] || {};
 
-  // Compute variant IDs from the plan/product (frontend tracks these separately)
-  const variantIds = [];
+  // Parse variant_ids from JSON array
+  const variantIds = Array.isArray(backendQuote.variant_ids)
+    ? backendQuote.variant_ids.map(String)
+    : [];
 
-  // Build a quotation number from the ID
-  const number = `QT-${backendQuote.quotation_id.slice(-4).toUpperCase()}`;
+  // Build a quotation number from backend
+  const number = backendQuote.quotation_number || `QT-${String(backendQuote.id).slice(-4).toUpperCase()}`;
 
   return {
-    id: backendQuote.quotation_id,
+    id: String(backendQuote.id),
     number,
-    staffId: backendQuote.staff || "",
-    customerId: backendQuote.customer || "",
-    planId: backendQuote.plan || "",
-    productId: plan.productId || "",
+    quotation_number: backendQuote.quotation_number,
+    staffId: String(backendQuote.staff || ""),
+    customerId: String(backendQuote.customer || ""),
+    planId: String(backendQuote.plan || ""),
+    productId: String(backendQuote.product || ""),
     variantIds,
-    quantity: 1,
-    discountType: "Percentage",
-    discountValue: 0,
+    quantity: backendQuote.quantity || 1,
+    discountType: backendQuote.discount_type || "Percentage",
+    discountValue: Number(backendQuote.discount_value) || 0,
     taxId: "",
     paymentTerms: backendQuote.payment_terms || "",
     status: backendQuote.status,
@@ -41,10 +40,14 @@ function transformQuotation(backendQuote, planLookup = {}, productLookup = {}) {
     unitPrice: Number(backendQuote.subtotal) || 0,
     subtotal: Number(backendQuote.subtotal) || 0,
     discountAmount: Number(backendQuote.discount_amount) || 0,
-    taxAmount: Number(backendQuote.tax) || 0,
-    taxRate: 0,
-    taxName: "",
+    taxAmount: Number(backendQuote.tax_amount) || 0,
+    taxRate: Number(backendQuote.tax_rate) || 0,
+    taxName: backendQuote.tax_name || "",
     total: Number(backendQuote.total) || 0,
+    customerName: backendQuote.customer_name || "",
+    planName: backendQuote.plan_name || "",
+    productName: backendQuote.product_name || "",
+    staffEmail: backendQuote.staff_email || "",
   };
 }
 
@@ -54,8 +57,11 @@ export const quotationService = {
     const payload = {
       customer_id: quotationData.customerId,
       plan_id: quotationData.planId,
+      product_id: quotationData.productId || null,
       validity_days: quotationData.validityDays || 30,
       payment_terms: quotationData.paymentTerms || "",
+      variant_ids: quotationData.variantIds || [],
+      quantity: quotationData.quantity || 1,
     };
 
     if (quotationData.discountCode) {
@@ -63,26 +69,38 @@ export const quotationService = {
     }
 
     const data = await api.post("/quotations/", payload);
+
+    // Transform to frontend shape
     return {
-      id: data.quotation_id,
-      customerId: data.customer,
+      id: String(data.id),
+      quotation_number: data.quotation_number,
+      customerId: String(data.customer),
       customerName: data.customer_name,
-      planId: data.plan,
+      planId: String(data.plan),
       planName: data.plan_name,
-      staffId: data.staff,
+      productId: String(data.product || ""),
+      productName: data.product_name,
+      staffId: String(data.staff || ""),
       staffEmail: data.staff_email,
       status: data.status,
       validityDays: data.validity_days,
       paymentTerms: data.payment_terms,
       subtotal: data.subtotal,
       discountAmount: data.discount_amount,
-      tax: data.tax,
+      tax: data.tax_amount,
       total: data.total,
       currency: data.currency,
       gatewayReferenceId: data.gateway_reference_id,
       expiresAt: data.expires_at,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
+      quantity: data.quantity,
+      variantIds: data.variant_ids || [],
+      discountCodeUsed: data.discount_code_used,
+      discountType: data.discount_type,
+      discountValue: data.discount_value,
+      taxRate: data.tax_rate,
+      taxName: data.tax_name,
     };
   },
 
@@ -103,13 +121,20 @@ export const quotationService = {
 
     const planLookup = {};
     plans.forEach((p) => {
-      planLookup[p.id] = p;
+      planLookup[String(p.id)] = p;
     });
     const productLookup = {};
     products.forEach((p) => {
-      productLookup[p.id] = p;
+      productLookup[String(p.id)] = p;
     });
 
     return data.map((item) => transformQuotation(item, planLookup, productLookup));
+  },
+
+  respond: async (quotationId, decision) => {
+    const data = await api.post(`/quotations/${quotationId}/respond/`, {
+      decision,
+    });
+    return data;
   },
 };

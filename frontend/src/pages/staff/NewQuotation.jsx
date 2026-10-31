@@ -1,16 +1,63 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { useData } from '../../context/DataContext';
-import { addDays, calculateQuote, formatMoney, getEffectiveDiscountPercent, toISODate } from '../../utils/billing';
+import {
+  addDays,
+  calculateQuote,
+  formatMoney,
+  getEffectiveDiscountPercent,
+  toISODate,
+} from '../../utils/billing';
+import { listingService } from '../../services/listingService';
+import { quotationService } from '../../services/quotationService';
 
 const PAYMENT_TERMS = ['Due on acceptance', 'Net 15', 'Net 30'];
 
 export default function NewQuotation() {
   const { user } = useAuth();
-  const { customers, products, plans, taxes, createQuotation } = useData();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  const [customers, setCustomers] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [plans, setPlans] = useState([]);
+  const [taxes, setTaxes] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load reference data from backend on mount
+  useEffect(() => {
+    let mounted = true;
+    async function loadData() {
+      try {
+        const [custs, prods, plns, taxes] = await Promise.all([
+          listingService.customers().catch(() => []),
+          listingService.products().catch(() => []),
+          listingService.plans().catch(() => []),
+          listingService.taxes().catch(() => []),
+        ]);
+        if (mounted) {
+          setCustomers(custs);
+          setProducts(prods);
+          setPlans(plns);
+          setTaxes(taxes);
+        }
+      } catch (error) {
+        console.error("Failed to load reference data:", error);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    loadData();
+    return () => { mounted = false; };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="stack" style={{ padding: "40px", textAlign: "center" }}>
+        <div className="text-muted">Loading products, plans and customers…</div>
+      </div>
+    );
+  }
 
   const activeProducts = products.filter((item) => item.status === 'Active');
   const activeTaxes = taxes.filter((item) => item.status === 'Active');
@@ -47,7 +94,7 @@ export default function NewQuotation() {
   }, [plan, tax, product, form.variantIds, form.quantity, form.discountType, form.discountValue]);
 
   const effectivePercent = preview ? getEffectiveDiscountPercent(preview.subtotal, form.discountType, form.discountValue) : 0;
-  const overLimit = effectivePercent > user.maxDiscountPercent + 1e-9;
+  const overLimit = effectivePercent > (user?.maxDiscountPercent || 0) + 1e-9;
 
   function updateField(name, value) {
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -76,18 +123,17 @@ export default function NewQuotation() {
     if (!form.planId) nextErrors.planId = 'Select a subscription plan.';
     if (!Number.isInteger(Number(form.quantity)) || Number(form.quantity) < 1) nextErrors.quantity = 'Quantity must be a whole number of at least 1.';
     if (Number(form.discountValue) < 0) nextErrors.discountValue = 'Discount cannot be negative.';
-    if (overLimit) nextErrors.discountValue = `Your discount limit is ${user.maxDiscountPercent}%.`;
+    if (overLimit) nextErrors.discountValue = `Your discount limit is ${user?.maxDiscountPercent}%.`;
     if (!form.taxId) nextErrors.taxId = 'Select a tax rule.';
     if (!form.validUntil || new Date(`${form.validUntil}T23:59:59`) < new Date()) nextErrors.validUntil = 'Validity must be a future date.';
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
     try {
-      await createQuotation({
-        staffId: user.id,
+      await quotationService.create({
         customerId: form.customerId,
-        productId: form.productId,
         planId: form.planId,
+        productId: form.productId,
         variantIds: form.variantIds,
         quantity: Number(form.quantity),
         discountType: form.discountType,
@@ -97,7 +143,12 @@ export default function NewQuotation() {
         taxName: tax?.name || "",
         paymentTerms: form.paymentTerms,
         validUntil: new Date(`${form.validUntil}T23:59:59`).toISOString(),
+        validityDays: 30,
       });
+
+      // Refresh quotations list
+      await quotationService.list();
+
       navigate('/staff/quotations', { state: { message: 'Quotation created and shared with the customer.' } });
     } catch (error) {
       setErrors({ _form: error.message || 'Failed to create quotation.' });
@@ -193,7 +244,7 @@ export default function NewQuotation() {
               <label htmlFor="quote-discount">Discount value</label>
               <input id="quote-discount" type="number" min="0" step="0.01" className="input" value={form.discountValue} onChange={(event) => updateField('discountValue', event.target.value)} aria-invalid={Boolean(errors.discountValue)} />
               <span className={overLimit ? 'field-error' : 'text-muted'}>
-                {errors.discountValue || `Your limit: up to ${user.maxDiscountPercent}% off`}
+                {errors.discountValue || `Your limit: up to ${user?.maxDiscountPercent}% off`}
               </span>
             </div>
             <div className="field">

@@ -1,20 +1,54 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import DataTable from '../../components/DataTable';
 import Modal from '../../components/Modal';
 import QuotationDetail from '../../components/QuotationDetail';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
-import { useData } from '../../context/DataContext';
+import { quotationService } from '../../services/quotationService';
+import { listingService } from '../../services/listingService';
 import { formatDate, formatMoney, getQuotationStatus } from '../../utils/billing';
 
 const FILTERS = ['All', 'Pending', 'Accepted', 'Rejected', 'Expired'];
 
 export default function Quotations() {
   const { user } = useAuth();
-  const { quotations, products, plans, respondToQuotation } = useData();
+  const [quotations, setQuotations] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
   const [viewingId, setViewingId] = useState(null);
   const [notice, setNotice] = useState('');
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [qList, prods, plns] = await Promise.all([
+        quotationService.list().catch(() => []),
+        listingService.products().catch(() => []),
+        listingService.plans().catch(() => []),
+      ]);
+      setQuotations(qList);
+      setProducts(prods);
+      setPlans(plns);
+    } catch (error) {
+      console.error("Failed to load quotations:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  if (loading) {
+    return (
+      <div className="stack" style={{ padding: "40px", textAlign: "center" }}>
+        <div className="text-muted">Loading quotations…</div>
+      </div>
+    );
+  }
 
   const mine = quotations
     .filter((quote) => quote.customerId === user.id)
@@ -26,15 +60,20 @@ export default function Quotations() {
   const productPlan = (quote) =>
     `${products.find((item) => item.id === quote.productId)?.name || '-'} · ${plans.find((item) => item.id === quote.planId)?.name || '-'}`;
 
-  function handleDecision(quote, decision) {
+  async function handleDecision(quote, decision) {
     if (decision === 'Rejected' && !window.confirm(`Reject quotation ${quote.number}?`)) return;
-    respondToQuotation(quote.id, decision);
-    setNotice(
-      decision === 'Accepted'
-        ? `Quotation ${quote.number} accepted. Your subscription is now active under Subscriptions.`
-        : `Quotation ${quote.number} was rejected.`,
-    );
-    setViewingId(null);
+    try {
+      await quotationService.respond(quote.id, decision);
+      setNotice(
+        decision === 'Accepted'
+          ? `Quotation ${quote.number} accepted. Your subscription is now active under Subscriptions.`
+          : `Quotation ${quote.number} was rejected.`,
+      );
+      setViewingId(null);
+      await loadData();
+    } catch (error) {
+      alert(error.message || 'Failed to respond to quotation.');
+    }
   }
 
   return (

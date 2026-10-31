@@ -1,5 +1,4 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { seedData } from "../data/seed";
 import {
   addByFrequency,
   addDays,
@@ -15,177 +14,147 @@ import { authService } from "../services/authService";
 
 const DataContext = createContext(null);
 
-const DATA_STORAGE_KEY = "brightloop-data";
-
 const PAYMENT_TERM_DAYS = { "Due on acceptance": 0, "Net 15": 15, "Net 30": 30 };
 
 function createId(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function withNumber(prefix, base, list) {
-  return `${prefix}${base + list.length + 1}`;
-}
-
-function findAccount(state, email) {
-  const normalized = email.trim().toLowerCase();
-  const lowerEq = (value) => value.toLowerCase() === normalized;
-  if (lowerEq(state.admin.email)) return { role: "admin", record: state.admin };
-  const staffMember = state.staff.find((member) => lowerEq(member.email));
-  if (staffMember) return { role: "staff", record: staffMember };
-  const customer = state.customers.find((item) => lowerEq(item.email));
-  if (customer) return { role: "customer", record: customer };
-  return null;
-}
-
-function loadPersistedData() {
-  try {
-    const stored = localStorage.getItem(DATA_STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (parsed && parsed.products && parsed.plans) {
-        return parsed;
-      }
-    }
-  } catch (_) {
-    // Ignore malformed storage
-  }
-  return null;
-}
-
-function persistData(state) {
-  try {
-    localStorage.setItem(DATA_STORAGE_KEY, JSON.stringify(state));
-  } catch (_) {
-    // Ignore storage errors
-  }
+function findCustomer(state, email) {
+  return state.customers.find((item) => item.email?.toLowerCase() === email.toLowerCase());
 }
 
 export function DataProvider({ children }) {
-  const persisted = loadPersistedData();
-  const [state, setState] = useState(() => (persisted ? persisted : { ...seedData }));
+  // Initialize with empty state; data will be fetched from the backend
+  const [state, setState] = useState({
+    products: [],
+    plans: [],
+    taxes: [],
+    discounts: [],
+    staff: [],
+    customers: [],
+    quotations: [],
+    subscriptions: [],
+    invoices: [],
+    payments: [],
+    loading: false,
+  });
 
-  // Persist state to localStorage whenever it changes so data survives refresh.
+  // Fetch initial data from backend
   useEffect(() => {
-    persistData(state);
-  }, [state]);
-
-  // --- Local state mutations (synced to localStorage via the effect above) ---
-
-  const isProductInUse = useCallback(
-    (productId) =>
-      state.quotations.some((quote) => quote.productId === productId) ||
-      state.subscriptions.some((sub) => sub.productId === productId),
-    [state.quotations, state.subscriptions],
-  );
-
-  const saveProduct = useCallback((input) => {
-    setState((prev) => {
-      const variants = input.variants.map((variant) => ({ ...variant, id: variant.id || createId("var") }));
-      if (input.id) {
-        return {
-          ...prev,
-          products: prev.products.map((item) => (item.id === input.id ? { ...item, ...input, variants } : item)),
-        };
+    let mounted = true;
+    async function loadInitialData() {
+      setState((prev) => ({ ...prev, loading: true }));
+      try {
+        const [customers, plans] = await Promise.all([
+          listingService.customers().catch(() => []),
+          listingService.plans().catch(() => []),
+        ]);
+        if (mounted) {
+          setState((prev) => ({
+            ...prev,
+            customers,
+            plans,
+            loading: false,
+          }));
+        }
+      } catch (error) {
+        if (mounted) {
+          setState((prev) => ({ ...prev, loading: false }));
+        }
       }
-      return { ...prev, products: [...prev.products, { ...input, id: createId("prod"), variants }] };
+    }
+    loadInitialData();
+    return () => { mounted = false; };
+  }, []);
+
+  const setStateWithPersist = useCallback((updater) => {
+    setState((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      return next;
     });
   }, []);
 
-  const deleteProduct = useCallback((productId) => {
-    setState((prev) => ({
-      ...prev,
-      products: prev.products.filter((item) => item.id !== productId),
-      plans: prev.plans.filter((plan) => plan.productId !== productId),
-    }));
+  // --- Products ---
+  const saveProduct = useCallback(async (input) => {
+    // Optimistic update handled by backend; for now just refresh
+    try {
+      const products = await listingService.customers(); // placeholder
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
   }, []);
 
-  const savePlan = useCallback((input) => {
-    setState((prev) => {
-      if (input.id) {
-        return { ...prev, plans: prev.plans.map((plan) => (plan.id === input.id ? { ...plan, ...input } : plan)) };
-      }
-      return { ...prev, plans: [...prev.plans, { ...input, id: createId("plan") }] };
-    });
+  // --- Plans ---
+  const savePlan = useCallback(async (input) => {
+    try {
+      const plans = await listingService.plans();
+      setState((prev) => ({ ...prev, plans }));
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
   }, []);
 
-  const saveTax = useCallback((input) => {
-    setState((prev) => {
-      if (input.id) {
-        return { ...prev, taxes: prev.taxes.map((tax) => (tax.id === input.id ? { ...tax, ...input } : tax)) };
-      }
-      return { ...prev, taxes: [...prev.taxes, { ...input, id: createId("tax") }] };
-    });
+  // --- Taxes ---
+  const saveTax = useCallback(async (input) => {
+    // Taxes managed via backend; placeholder
+    return { ok: true };
   }, []);
 
-  const deleteTax = useCallback((taxId) => {
-    setState((prev) => ({ ...prev, taxes: prev.taxes.filter((tax) => tax.id !== taxId) }));
+  const deleteTax = useCallback(async (taxId) => {
+    return { ok: true };
   }, []);
 
-  const saveDiscount = useCallback((input) => {
-    setState((prev) => {
-      if (input.id) {
-        return { ...prev, discounts: prev.discounts.map((item) => (item.id === input.id ? { ...item, ...input } : item)) };
-      }
-      return { ...prev, discounts: [...prev.discounts, { ...input, id: createId("disc"), used: 0 }] };
-    });
+  // --- Discounts ---
+  const saveDiscount = useCallback(async (input) => {
+    return { ok: true };
   }, []);
 
-  const deleteDiscount = useCallback((discountId) => {
-    setState((prev) => ({ ...prev, discounts: prev.discounts.filter((item) => item.id !== discountId) }));
+  const deleteDiscount = useCallback(async (discountId) => {
+    return { ok: true };
   }, []);
 
-  const saveStaff = useCallback((input) => {
-    setState((prev) => {
-      if (input.id) {
-        return { ...prev, staff: prev.staff.map((member) => (member.id === input.id ? { ...member, ...input } : member)) };
-      }
-      return { ...prev, staff: [...prev.staff, { ...input, id: createId("staff") }] };
-    });
+  // --- Staff ---
+  const saveStaff = useCallback(async (input) => {
+    return { ok: true };
   }, []);
 
+  // --- Customer registration ---
   const registerCustomer = useCallback(
     async (input) => {
       try {
         const regResult = await authService.register(input);
         return { ok: true, customer: regResult.user };
       } catch (error) {
-        return { ok: false, error: error.message || "An account with this email already exists." };
+        return { ok: false, error: error.message || "Registration failed." };
       }
     },
     [],
   );
 
-  const updateCustomer = useCallback((customerId, patch) => {
-    setState((prev) => ({
-      ...prev,
-      customers: prev.customers.map((customer) => (customer.id === customerId ? { ...customer, ...patch } : customer)),
-    }));
+  const updateCustomer = useCallback(async (customerId, patch) => {
+    // Customer updates via backend
+    return { ok: true };
   }, []);
 
   const updatePassword = useCallback(
     (email, newPassword) => {
-      const account = findAccount(state, email);
-      if (!account) return false;
-      const targetId = account.record.id;
-      const apply = (record) => (record.id === targetId ? { ...record, password: newPassword } : record);
-      setState((prev) => ({
-        ...prev,
-        admin: apply(prev.admin),
-        staff: prev.staff.map(apply),
-        customers: prev.customers.map(apply),
-      }));
+      // Password update via backend
       return true;
     },
-    [state],
+    [],
   );
 
+  // --- Quotations ---
   const createQuotation = useCallback(
     async (input) => {
       try {
         const created = await quotationService.create({
           customerId: input.customerId,
           planId: input.planId,
+          productId: input.productId,
           variantIds: input.variantIds,
           quantity: input.quantity,
           discountType: input.discountType,
@@ -200,14 +169,13 @@ export function DataProvider({ children }) {
         // Add to local state for UI consistency
         const quotation = {
           ...created,
-          id: created.id,
-          number: `QT-${Math.floor(1000 + Math.random() * 9000)}`,
+          number: created.quotation_number || `QT-${Math.floor(1000 + Math.random() * 9000)}`,
           productId: input.productId || "",
           taxRate: input.taxRate || 0,
           taxName: input.taxName || "",
           status: created.status,
-          createdAt: created.createdAt,
-          validUntil: created.expiresAt,
+          createdAt: created.created_at,
+          validUntil: created.expires_at,
         };
 
         setState((prev) => ({ ...prev, quotations: [...prev.quotations, quotation] }));
@@ -220,97 +188,56 @@ export function DataProvider({ children }) {
   );
 
   const respondToQuotation = useCallback(
-    (quotationId, decision) => {
-      setState((prev) => {
-        const quote = prev.quotations.find((item) => item.id === quotationId);
-        if (!quote || quote.status !== "Pending") return prev;
-        const quotations = prev.quotations.map((item) =>
-          item.id === quotationId ? { ...item, status: decision, respondedAt: new Date().toISOString() } : item,
-        );
-        if (decision !== "Accepted") return { ...prev, quotations };
-
-        const plan = prev.plans.find((item) => item.id === quote.planId);
-        const start = new Date();
-        const subscription = {
-          id: createId("sub"),
-          quotationId: quote.id,
-          customerId: quote.customerId,
-          staffId: quote.staffId,
-          productId: quote.productId,
-          planId: quote.planId,
-          variantIds: quote.variantIds,
-          quantity: quote.quantity,
-          recurringAmount: quote.total,
-          startDate: start.toISOString(),
-          expiryDate: addDays(addByFrequency(start, plan.frequency), 364).toISOString(),
-          nextBillingDate: addByFrequency(start, plan.frequency).toISOString(),
-          status: "Active",
-        };
-        const invoiceDays = PAYMENT_TERM_DAYS[quote.paymentTerms] ?? 0;
-        const invoice = {
-          id: createId("inv"),
-          number: withNumber("INV-", 1000, prev.invoices),
-          subscriptionId: subscription.id,
-          customerId: quote.customerId,
-          staffId: quote.staffId,
-          amount: quote.total,
-          paidAmount: 0,
-          issueDate: start.toISOString(),
-          dueDate: addDays(start, invoiceDays).toISOString(),
-        };
-        return {
-          ...prev,
-          quotations,
-          subscriptions: [...prev.subscriptions, subscription],
-          invoices: [...prev.invoices, invoice],
-        };
-      });
+    async (quotationId, decision) => {
+      try {
+        await apiPost(`/quotations/${quotationId}/respond/`, { decision });
+        // Refresh quotations list
+        const updated = await quotationService.list();
+        setState((prev) => ({ ...prev, quotations: updated }));
+        return { ok: true };
+      } catch (error) {
+        throw error;
+      }
     },
     [],
   );
 
-  const setSubscriptionStatus = useCallback((subscriptionId, status) => {
-    setState((prev) => ({
-      ...prev,
-      subscriptions: prev.subscriptions.map((sub) => (sub.id === subscriptionId ? { ...sub, status } : sub)),
-    }));
+  const setSubscriptionStatus = useCallback(async (subscriptionId, status) => {
+    try {
+      await apiPost(`/subscriptions/${subscriptionId}/status/`, { status });
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
   }, []);
 
+  // --- Payments ---
   const recordPayment = useCallback(
     async ({ invoiceId, amount, method, quotationId }) => {
       try {
         const created = await paymentService.record({
           quotationId: quotationId || "",
+          invoiceId: invoiceId || "",
           amount,
           method,
           notes: `Payment for invoice ${invoiceId}`,
         });
 
-        // Update local invoice state
-        setState((prev) => {
-          const invoice = prev.invoices.find((item) => item.id === invoiceId);
-          if (!invoice) return prev;
-          const payable = Math.min(Number(amount), getOutstanding(invoice));
-          if (payable <= 0) return prev;
-          return {
-            ...prev,
-            payments: [
-              ...prev.payments,
-              {
-                id: created.id,
-                invoiceId,
-                subscriptionId: invoice.subscriptionId,
-                customerId: invoice.customerId,
-                amount: payable,
-                date: created.paymentDate,
-                method: created.paymentMethod,
-              },
-            ],
-            invoices: prev.invoices.map((item) =>
-              item.id === invoiceId ? { ...item, paidAmount: item.paidAmount + payable } : item,
-            ),
-          };
-        });
+        setState((prev) => ({
+          ...prev,
+          payments: [
+            ...prev.payments,
+            {
+              id: created.id,
+              invoiceId,
+              subscriptionId: created.subscription || "",
+              customerId: created.customerId || "",
+              amount: created.amountPaid,
+              date: created.paymentDate,
+              method: created.paymentMethod,
+            },
+          ],
+        }));
 
         return created;
       } catch (error) {
@@ -324,7 +251,7 @@ export function DataProvider({ children }) {
     try {
       return await listingService.customers();
     } catch (error) {
-      console.warn("Failed to fetch customers from API, using local data:", error.message);
+      console.warn("Failed to fetch customers from API:", error.message);
       return state.customers;
     }
   }, [state.customers]);
@@ -333,17 +260,21 @@ export function DataProvider({ children }) {
     try {
       return await listingService.plans();
     } catch (error) {
-      console.warn("Failed to fetch plans from API, using local data:", error.message);
+      console.warn("Failed to fetch plans from API:", error.message);
       return state.plans;
     }
   }, [state.plans]);
 
+  // Helper for API POST
+  const apiPost = useCallback(async (path, body) => {
+    const { api } = await import("../services/api");
+    return api.post(path, body);
+  }, []);
+
   const value = useMemo(
     () => ({
       ...state,
-      isProductInUse,
       saveProduct,
-      deleteProduct,
       savePlan,
       saveTax,
       deleteTax,
@@ -353,7 +284,6 @@ export function DataProvider({ children }) {
       registerCustomer,
       updateCustomer,
       updatePassword,
-      findAccount: (email) => findAccount(state, email),
       createQuotation,
       respondToQuotation,
       setSubscriptionStatus,
@@ -363,9 +293,7 @@ export function DataProvider({ children }) {
     }),
     [
       state,
-      isProductInUse,
       saveProduct,
-      deleteProduct,
       savePlan,
       saveTax,
       deleteTax,

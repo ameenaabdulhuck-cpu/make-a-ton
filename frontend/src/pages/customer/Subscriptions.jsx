@@ -1,16 +1,49 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import DataTable from '../../components/DataTable';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import SubscriptionDetail from '../../components/SubscriptionDetail';
 import { useAuth } from '../../context/AuthContext';
-import { useData } from '../../context/DataContext';
+import { listingService } from '../../services/listingService';
 import { formatDate, formatMoney } from '../../utils/billing';
 
 export default function Subscriptions() {
   const { user } = useAuth();
-  const { subscriptions, plans, products } = useData();
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [viewing, setViewing] = useState(null);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [subs, prods, plns] = await Promise.all([
+        listingService.subscriptions().catch(() => []),
+        listingService.products().catch(() => []),
+        listingService.plans().catch(() => []),
+      ]);
+      setSubscriptions(subs);
+      setProducts(prods);
+      setPlans(plns);
+    } catch (error) {
+      console.error("Failed to load subscriptions:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  if (loading) {
+    return (
+      <div className="stack" style={{ padding: "40px", textAlign: "center" }}>
+        <div className="text-muted">Loading subscriptions…</div>
+      </div>
+    );
+  }
 
   const mySubs = subscriptions.filter((sub) => sub.customerId === user.id);
   const planLabel = (sub) => {
