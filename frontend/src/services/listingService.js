@@ -10,7 +10,7 @@ export const listingService = {
     const data = await api.get("/customers/");
     return data.map((item) => ({
       id: String(item.id),
-      userId: String(item.user || ""),
+      userId: String(item.user?.id || ""),
       companyName: item.company_name || "",
       businessName: item.company_name || "",
       name: item.company_name || "",

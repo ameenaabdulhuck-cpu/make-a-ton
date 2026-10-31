@@ -425,6 +425,11 @@ export function DataProvider({ children }) {
     }
   }, [state.plans]);
 
+  const getCustomerIdByUserId = useCallback((userId) => {
+    const customer = state.customers.find((item) => item.userId === userId);
+    return customer ? customer.id : null;
+  }, [state.customers]);
+
   const value = useMemo(
     () => ({
       ...state,
@@ -447,6 +452,7 @@ export function DataProvider({ children }) {
       fetchCustomers,
       fetchPlans,
       findAccount,
+      getCustomerIdByUserId,
     }),
     [
       state,
@@ -469,6 +475,7 @@ export function DataProvider({ children }) {
       fetchCustomers,
       fetchPlans,
       findAccount,
+      getCustomerIdByUserId,
     ],
   );
 

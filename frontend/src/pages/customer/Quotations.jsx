@@ -4,6 +4,7 @@ import Modal from '../../components/Modal';
 import QuotationDetail from '../../components/QuotationDetail';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
+import { useData } from '../../context/DataContext';
 import { quotationService } from '../../services/quotationService';
 import { listingService } from '../../services/listingService';
 import { formatDate, formatMoney, getQuotationStatus } from '../../utils/billing';
@@ -12,6 +13,7 @@ const FILTERS = ['All', 'Pending', 'Accepted', 'Rejected', 'Expired'];
 
 export default function Quotations() {
   const { user } = useAuth();
+  const { getCustomerIdByUserId } = useData();
   const [quotations, setQuotations] = useState([]);
   const [products, setProducts] = useState([]);
   const [plans, setPlans] = useState([]);
@@ -50,10 +52,12 @@ export default function Quotations() {
     );
   }
 
-  const mine = quotations
-    .filter((quote) => quote.customerId === user.id)
-    .map((quote) => ({ ...quote, displayStatus: getQuotationStatus(quote) }))
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const customerId = getCustomerIdByUserId(user.id);
+  const mine = customerId
+    ? quotations.filter((quote) => quote.customerId === customerId)
+        .map((quote) => ({ ...quote, displayStatus: getQuotationStatus(quote) }))
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    : [];
   const rows = filter === 'All' ? mine : mine.filter((quote) => quote.displayStatus === filter);
   const viewing = mine.find((quote) => quote.id === viewingId) || null;
 
@@ -116,6 +120,27 @@ export default function Quotations() {
             { key: 'validUntil', label: 'Valid until', render: (row) => formatDate(row.validUntil) },
             { key: 'total', label: 'Total', align: 'right', render: (row) => formatMoney(row.total) },
             { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.displayStatus} /> },
+            { key: 'actions', label: 'Actions', render: (row) => {
+                if (row.displayStatus !== 'Pending') return null;
+                return (
+                  <div className="table-actions">
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handleDecision(row, 'Rejected')}
+                    >
+                      Reject
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={() => handleDecision(row, 'Accepted')}
+                    >
+                      Accept
+                    </button>
+                  </div>
+                );
+              }},
           ]}
         />
       </div>
