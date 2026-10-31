@@ -31,9 +31,18 @@ export default function SubscriptionsPayments() {
     return `${product?.name || '-'} · ${plan?.name || '-'}`;
   };
 
-  function handleRecordPayment(data) {
-    recordPayment(data);
-    setPaying(null);
+  async function handleRecordPayment(data) {
+    try {
+      await recordPayment({
+        invoiceId: data.invoiceId,
+        amount: data.amount,
+        method: data.method,
+        quotationId: data.quotationId || "",
+      });
+      setPaying(null);
+    } catch (error) {
+      alert(error.message || "Failed to record payment.");
+    }
   }
 
   return (

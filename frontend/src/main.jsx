@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
+import { ThemeProvider } from './context/ThemeContext';
 import './index.css';
 import './styles/components.css';
 import './styles/pages.css';
@@ -11,11 +12,13 @@ import './styles/pages.css';
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
-      <DataProvider>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </DataProvider>
+      <ThemeProvider>
+        <DataProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </DataProvider>
+      </ThemeProvider>
     </BrowserRouter>
   </StrictMode>,
 );

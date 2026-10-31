@@ -5,8 +5,8 @@ export default function AuthLayout({ title, subtitle, children, footer }) {
     <div className="auth-page">
       <div className="auth-visual">
         <Link to="/login" className="auth-brand">
-          <span className="brand-mark">S</span>
-          SubHub
+          <span className="brand-mark">B</span>
+          BrightLoop
         </Link>
         <div className="auth-visual-copy">
           <h1>Subscriptions, quotations and billing in one place.</h1>

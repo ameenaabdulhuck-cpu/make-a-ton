@@ -21,7 +21,7 @@ export default function RecordPaymentForm({ invoice, onSave, onClose }) {
       setError(`The amount cannot exceed the outstanding balance of ${formatMoney(outstanding)}.`);
       return;
     }
-    onSave({ invoiceId: invoice.id, amount: value, method });
+    onSave({ invoiceId: invoice.id, amount: value, method, quotationId: invoice.quotationId || "" });
   }
 
   return (

@@ -13,7 +13,7 @@ class QuotationCreateInputSerializer(serializers.Serializer):
 
     customer_id = serializers.CharField(required=True)
     plan_id = serializers.CharField(required=True)
-    discount_code = serializers.CharField(required=False, allow_blank=True)
+    discount_code = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     validity_days = serializers.IntegerField(
         required=False, min_value=1, default=30
     )

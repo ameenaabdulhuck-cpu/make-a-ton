@@ -57,7 +57,7 @@ class QuotationService:
         # 3. Discount calculation.
         discount_amount = Decimal("0")
         applied_discount = None
-        if discount_code:
+        if discount_code and discount_code.strip():
             try:
                 applied_discount = Discount.objects.get(discount_name=discount_code)
             except Discount.DoesNotExist as exc:

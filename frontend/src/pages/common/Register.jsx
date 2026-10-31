@@ -41,13 +41,13 @@ export default function Register() {
     setErrors((prev) => ({ ...prev, [name]: undefined }));
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     const validation = validateRegistration(form);
     setErrors(validation);
     if (Object.keys(validation).length > 0) return;
 
-    const result = registerCustomer({
+    const result = await registerCustomer({
       name: form.name.trim(),
       email: form.email.trim(),
       password: form.password,

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import RegexValidator
@@ -6,21 +5,32 @@ from django.db import transaction
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from .models import CustomerProfile, User, SubscriptionPlan, Discount
+from .models import (
+    CustomerProfile,
+    Discount,
+    PaymentRecord,
+    Quotation,
+    SubscriptionPlan,
+    User,
+)
 
+# Identical to the `pattern` in customer-reg.json:
+# >= 9 chars, at least one lowercase, one uppercase and one of !@#$%^&*
 PASSWORD_PATTERN = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*]).{9,}$"
 
 password_regex_validator = RegexValidator(
     regex=PASSWORD_PATTERN,
     message=(
         "Password must be at least 9 characters and include a lowercase letter, "
-        "an uppercase letter and one special character from !@#$%%^&*."
+        "an uppercase letter and one special character from !@#$%%^&*."  # %% = literal %
     ),
     code="invalid_password",
 )
 
 
 class BusinessDetailsSerializer(serializers.ModelSerializer):
+    """`business_details` object. Inner fields are optional in the schema."""
+
     class Meta:
         model = CustomerProfile
         fields = ["company_name", "address", "tax_id"]
@@ -32,7 +42,9 @@ class BusinessDetailsSerializer(serializers.ModelSerializer):
 
 
 class CustomerRegistrationSerializer(serializers.ModelSerializer):
-    name = serializers.CharField(max_length=150)
+    """Validates a customer-reg.json payload and creates User + CustomerProfile."""
+
+    name = serializers.CharField(max_length=150)  # required, non-blank, trimmed
     email = serializers.EmailField(
         max_length=254,
         validators=[
@@ -49,6 +61,7 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
         style={"input_type": "password"},
         validators=[password_regex_validator],
     )
+    # `business_details` is required as an object (its inner keys are not).
     business_details = BusinessDetailsSerializer(source="customer_profile")
 
     class Meta:
@@ -60,6 +73,7 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
         return value.strip().lower()
 
     def validate_password(self, value):
+        # Also run Django's AUTH_PASSWORD_VALIDATORS (common passwords, etc.).
         try:
             password_validation.validate_password(value)
         except DjangoValidationError as exc:
@@ -79,17 +93,18 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubscriptionPlan
         fields = [
-            'id', 'plan_name', 'base_price', 'billing_frequency', 
-            'auto_renew', 'can_pause', 'can_close_early'
+            "id",
+            "plan_name",
+            "base_price",
+            "billing_frequency",
+            "auto_renew",
+            "can_pause",
+            "can_close_early",
         ]
 
 
 class DiscountValidateSerializer(serializers.Serializer):
     discount_name = serializers.CharField(max_length=150)
-=======
-from rest_framework import serializers
-
-from .models import PaymentRecord, Quotation
 
 
 class QuotationSerializer(serializers.ModelSerializer):
@@ -186,4 +201,3 @@ class PaymentRecordSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["payment_id", "quotation_id", "created_at", "updated_at"]
->>>>>>> 013bb3c (some bs)

@@ -24,7 +24,21 @@ import CustomerSubscriptions from './pages/customer/Subscriptions';
 import InvoicesPaymentsProfile from './pages/customer/InvoicesPaymentsProfile';
 
 export default function App() {
-  const { user } = useAuth();
+  const { user, isReady } = useAuth();
+
+  // Show a lightweight shell while auth state is being restored from storage.
+  if (!isReady) {
+    return (
+      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--neutral-50)" }}>
+        <div style={{ textAlign: "center", color: "var(--neutral-500)" }}>
+          <div style={{ fontSize: "1.25rem", fontWeight: 600, color: "var(--neutral-900)", marginBottom: "0.5rem" }}>
+            BrightLoop
+          </div>
+          <div style={{ fontSize: "0.875rem" }}>Signing you in…</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Routes>

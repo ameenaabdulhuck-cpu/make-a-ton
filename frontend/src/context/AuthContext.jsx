@@ -1,50 +1,81 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { useData } from './DataContext';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { authService } from "../services/authService";
 
 const AuthContext = createContext(null);
 
+const AUTH_STORAGE_KEY = "brightloop-auth";
+
 export const ROLE_HOME = {
-  admin: '/admin/dashboard',
-  staff: '/staff/dashboard',
-  customer: '/customer/dashboard',
+  admin: "/admin/dashboard",
+  staff: "/staff/dashboard",
+  customer: "/customer/dashboard",
 };
 
 export function AuthProvider({ children }) {
-  const { admin, staff, customers, findAccount } = useData();
   const [session, setSession] = useState(null);
+  const [isReady, setIsReady] = useState(false);
+
+  // Restore session from localStorage on mount so login survives refresh.
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && parsed.role && parsed.id && parsed.user) {
+          setSession(parsed);
+        }
+      }
+    } catch (_) {
+      // Ignore malformed storage
+    }
+    setIsReady(true);
+  }, []);
+
+  const persistSession = useCallback((next) => {
+    try {
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(next));
+    } catch (_) {
+      // Ignore storage errors
+    }
+  }, []);
 
   const login = useCallback(
-    (email, password) => {
-      const account = findAccount(email);
-      if (!account || account.record.password !== password) {
-        return { ok: false, error: 'Incorrect email or password.' };
+    async (email, password) => {
+      try {
+        const result = await authService.login(email, password);
+        const user = result.user;
+        const next = { role: user.role, id: user.id, user };
+        setSession(next);
+        persistSession(next);
+        return { ok: true, role: user.role, user };
+      } catch (error) {
+        return { ok: false, error: error.message || "Incorrect email or password." };
       }
-      setSession({ role: account.role, id: account.record.id });
-      return { ok: true, role: account.role };
     },
-    [findAccount],
+    [persistSession],
   );
 
-  const logout = useCallback(() => setSession(null), []);
+  const logout = useCallback(() => {
+    setSession(null);
+    try {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    } catch (_) {
+      // Ignore
+    }
+  }, []);
 
   const user = useMemo(() => {
     if (!session) return null;
-    if (session.role === 'admin') return { ...admin, role: 'admin' };
-    if (session.role === 'staff') {
-      const member = staff.find((item) => item.id === session.id);
-      return member ? { ...member, role: 'staff' } : null;
-    }
-    const customer = customers.find((item) => item.id === session.id);
-    return customer ? { ...customer, role: 'customer' } : null;
-  }, [session, admin, staff, customers]);
+    return { ...session.user, role: session.role };
+  }, [session]);
 
-  const value = useMemo(() => ({ user, login, logout }), [user, login, logout]);
+  const value = useMemo(() => ({ user, login, logout, isReady }), [user, login, logout, isReady]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used inside AuthProvider');
+  if (!context) throw new Error("useAuth must be used inside AuthProvider");
   return context;
 }

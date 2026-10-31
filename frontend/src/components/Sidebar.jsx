@@ -35,8 +35,8 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <span className="brand-mark">S</span>
-        SubHub
+        <span className="brand-mark">B</span>
+        BrightLoop
       </div>
       <div className="sidebar-role">{ROLE_LABEL[user.role]}</div>
       <nav className="sidebar-nav">

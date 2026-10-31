@@ -16,13 +16,13 @@ export default function Login() {
     setForm((prev) => ({ ...prev, [event.target.name]: event.target.value }));
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     if (!form.email.trim() || !form.password) {
       setError('Enter your email and password.');
       return;
     }
-    const result = login(form.email, form.password);
+    const result = await login(form.email, form.password);
     if (!result.ok) {
       setError(result.error);
       return;

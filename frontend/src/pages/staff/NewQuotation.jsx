@@ -68,7 +68,7 @@ export default function NewQuotation() {
     }));
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     const nextErrors = {};
     if (!form.customerId) nextErrors.customerId = 'Select a customer.';
@@ -82,19 +82,26 @@ export default function NewQuotation() {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
-    createQuotation({
-      staffId: user.id,
-      customerId: form.customerId,
-      planId: form.planId,
-      variantIds: form.variantIds,
-      quantity: Number(form.quantity),
-      discountType: form.discountType,
-      discountValue: Number(form.discountValue) || 0,
-      taxId: form.taxId,
-      paymentTerms: form.paymentTerms,
-      validUntil: new Date(`${form.validUntil}T23:59:59`).toISOString(),
-    });
-    navigate('/staff/quotations', { state: { message: 'Quotation created and shared with the customer.' } });
+    try {
+      await createQuotation({
+        staffId: user.id,
+        customerId: form.customerId,
+        productId: form.productId,
+        planId: form.planId,
+        variantIds: form.variantIds,
+        quantity: Number(form.quantity),
+        discountType: form.discountType,
+        discountValue: Number(form.discountValue) || 0,
+        taxId: form.taxId,
+        taxRate: tax?.rate || 0,
+        taxName: tax?.name || "",
+        paymentTerms: form.paymentTerms,
+        validUntil: new Date(`${form.validUntil}T23:59:59`).toISOString(),
+      });
+      navigate('/staff/quotations', { state: { message: 'Quotation created and shared with the customer.' } });
+    } catch (error) {
+      setErrors({ _form: error.message || 'Failed to create quotation.' });
+    }
   }
 
   return (
