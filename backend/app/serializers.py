@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import RegexValidator
@@ -85,3 +86,104 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
 
 class DiscountValidateSerializer(serializers.Serializer):
     discount_name = serializers.CharField(max_length=150)
+=======
+from rest_framework import serializers
+
+from .models import PaymentRecord, Quotation
+
+
+class QuotationSerializer(serializers.ModelSerializer):
+    """Serializer for the Quotation model."""
+
+    customer_name = serializers.CharField(
+        source="customer.company_name", read_only=True
+    )
+    plan_name = serializers.CharField(source="plan.plan_name", read_only=True)
+    staff_email = serializers.EmailField(source="staff.email", read_only=True)
+
+    class Meta:
+        model = Quotation
+        fields = [
+            "quotation_id",
+            "customer",
+            "customer_name",
+            "plan",
+            "plan_name",
+            "staff",
+            "staff_email",
+            "status",
+            "validity_days",
+            "payment_terms",
+            "subtotal",
+            "discount_amount",
+            "tax",
+            "total",
+            "currency",
+            "gateway_reference_id",
+            "expires_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["quotation_id", "expires_at", "created_at", "updated_at"]
+
+    def validate(self, data):
+        """Ensure total is consistent with subtotal, discount and tax."""
+        subtotal = data.get("subtotal", self.instance.subtotal if self.instance else 0)
+        discount = data.get(
+            "discount_amount",
+            self.instance.discount_amount if self.instance else 0,
+        )
+        tax = data.get("tax", self.instance.tax if self.instance else 0)
+        total = data.get("total", self.instance.total if self.instance else 0)
+
+        expected_total = subtotal - discount + tax
+        if total is not None and abs(total - expected_total) > 0.01:
+            raise serializers.ValidationError(
+                {
+                    "total": (
+                        f"Total ({total}) does not match "
+                        f"subtotal ({subtotal}) - discount ({discount}) + tax ({tax}) "
+                        f"= {expected_total}."
+                    )
+                }
+            )
+        return data
+
+
+class PaymentRecordSerializer(serializers.ModelSerializer):
+    """Serializer for the PaymentRecord model."""
+
+    customer_name = serializers.CharField(
+        source="customer.company_name", read_only=True
+    )
+    plan_name = serializers.CharField(source="plan.plan_name", read_only=True)
+    recorded_by_email = serializers.EmailField(
+        source="recorded_by.email", read_only=True
+    )
+    quotation_id = serializers.UUIDField(source="quotation.id", read_only=True)
+
+    class Meta:
+        model = PaymentRecord
+        fields = [
+            "payment_id",
+            "customer",
+            "customer_name",
+            "plan",
+            "plan_name",
+            "quotation",
+            "quotation_id",
+            "invoice_id",
+            "amount_paid",
+            "payment_method",
+            "payment_date",
+            "recorded_by",
+            "recorded_by_email",
+            "notes",
+            "status",
+            "currency",
+            "gateway_reference_id",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["payment_id", "quotation_id", "created_at", "updated_at"]
+>>>>>>> 013bb3c (some bs)
