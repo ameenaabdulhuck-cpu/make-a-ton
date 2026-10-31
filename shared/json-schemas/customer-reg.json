@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CustomerRegistration",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" },
+    "email": { "type": "string", "format": "email" },
+    "password": { 
+      "type": "string", 
+      "pattern": "^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*]).{9,}$" 
+    },
+    "business_details": {
+      "type": "object",
+      "properties": {
+        "company_name": { "type": "string" },
+        "address": { "type": "string" },
+        "tax_id": { "type": "string" }
+      }
+    }
+  },
+  "required": ["name", "email", "password", "business_details"]
+}

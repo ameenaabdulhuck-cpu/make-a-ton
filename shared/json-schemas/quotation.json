@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Quotation",
+  "type": "object",
+  "properties": {
+    "quotation_id": { "type": "string", "format": "uuid" },
+    "staff_id": { "type": "string", "format": "uuid" },
+    "customer_id": { "type": "string", "format": "uuid" },
+    "status": {
+      "type": "string",
+      "enum": ["Pending", "Accepted", "Rejected", "Expired"]
+    },
+    "validity_days": { "type": "integer" },
+    "payment_terms": { "type": "string" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "product_id": { "type": "string", "format": "uuid" },
+          "plan_id": { "type": "string", "format": "uuid" },
+          "variant_ids": { "type": "array", "items": { "type": "string" } },
+          "quantity": { "type": "integer" },
+          "applied_discount_id": { "type": "string", "format": "uuid", "nullable": true },
+          "tax_amount": { "type": "number" },
+          "line_total": { "type": "number" }
+        }
+      }
+    },
+    "grand_total": { "type": "number" }
+  },
+  "required": ["staff_id", "customer_id", "status", "validity_days", "items", "grand_total"]
+}

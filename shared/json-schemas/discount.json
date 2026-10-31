@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DiscountRule",
+  "type": "object",
+  "properties": {
+    "discount_name": { "type": "string" },
+    "discount_type": {
+      "type": "string",
+      "enum": ["fixed", "percentage"]
+    },
+    "value": { "type": "number" },
+    "staff_maximum_limit": {
+      "type": "number",
+      "description": "Maximum discount a staff member is allowed to apply"
+    },
+    "validity": {
+      "type": "object",
+      "properties": {
+        "start_date": { "type": "string", "format": "date" },
+        "end_date": { "type": "string", "format": "date" }
+      }
+    },
+    "usage_limit": { "type": "integer" }
+  },
+  "required": ["discount_name", "discount_type", "value", "staff_maximum_limit"]
+}

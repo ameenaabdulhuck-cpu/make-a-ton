@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SubscriptionPlan",
+  "type": "object",
+  "properties": {
+    "plan_name": { "type": "string" },
+    "billing_frequency": {
+      "type": "string",
+      "enum": ["Daily", "Weekly", "Monthly", "Yearly"]
+    },
+    "base_price": { "type": "number" },
+    "lifecycle_options": {
+      "type": "object",
+      "properties": {
+        "auto_renew": { "type": "boolean" },
+        "can_pause": { "type": "boolean" },
+        "can_close_early": { "type": "boolean" }
+      }
+    }
+  },
+  "required": ["plan_name", "billing_frequency", "base_price", "lifecycle_options"]
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PaymentRecord",
+  "type": "object",
+  "properties": {
+    "invoice_id": { "type": "string", "format": "uuid" },
+    "subscription_id": { "type": "string", "format": "uuid" },
+    "customer_id": { "type": "string", "format": "uuid" },
+    "amount_paid": { "type": "number" },
+    "payment_method": { "type": "string" },
+    "payment_date": { "type": "string", "format": "date-time" },
+    "recorded_by_staff_id": { "type": "string", "format": "uuid" },
+    "notes": { "type": "string" }
+  },
+  "required": ["invoice_id", "subscription_id", "amount_paid", "payment_method", "payment_date", "recorded_by_staff_id"]
+}
